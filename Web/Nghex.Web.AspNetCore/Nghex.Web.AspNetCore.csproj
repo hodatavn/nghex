@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageId>Nghex.Web.AspNetCore</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Alan</Authors>
+    <Company>Nghex</Company>
+    <Description>Provides ASP.NET Core integration and web conventions for Nghex applications.</Description>
+    <RepositoryUrl>https://github.com/hodatavn/nghex</RepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>nghex web aspnetcore framework</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Use built-in ASP.NET Core assemblies from the shared framework (via FrameworkReference below),
+         so we intentionally do NOT reference the old 2.2.5 Microsoft.AspNetCore.Mvc.Core package here.
+         Keeping only modern, compatible packages avoids System.* package downgrade issues when targeting net9.0. -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.10" />
+    <PackageReference Include="System.ComponentModel.Annotations" Version="5.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\Nghex.Core\Nghex.Core.csproj" />
+    <ProjectReference Include="..\..\Core\Nghex.Utilities\Nghex.Utilities.csproj" />
+  </ItemGroup>
+
+</Project>

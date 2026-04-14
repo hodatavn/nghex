@@ -1,0 +1,12 @@
+<Project>
+  <PropertyGroup>
+    <PackageReadmeFile>README.NuGet.md</PackageReadmeFile>
+    <PackageReleaseNotes>Initial stable release of Nghex packages with standardized package metadata and documentation.</PackageReleaseNotes>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)README.NuGet.md" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
+</Project>
+
+

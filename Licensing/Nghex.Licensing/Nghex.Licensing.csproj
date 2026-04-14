@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <PackageId>Nghex.Licensing</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>Alan</Authors>
+    <Company>Nghex</Company>
+    <Description>Provides license validation and runtime licensing support for Nghex applications.</Description>
+    <RepositoryUrl>https://github.com/hodatavn/nghex</RepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageTags>nghex licensing framework</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\Nghex.Core\Nghex.Core.csproj" />
+    <ProjectReference Include="..\..\Core\Nghex.Utilities\Nghex.Utilities.csproj" />
+  </ItemGroup>
+
+</Project>
