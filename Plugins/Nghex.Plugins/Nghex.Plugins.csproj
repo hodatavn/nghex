@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>Nghex.Plugins</PackageId>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <Authors>Alan</Authors>
     <Company>Nghex</Company>
     <Description>Provides plugin discovery, loading, and runtime orchestration for extensible Nghex applications.</Description>

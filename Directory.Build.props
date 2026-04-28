@@ -1,7 +1,7 @@
 <Project>
   <PropertyGroup>
     <PackageReadmeFile>README.NuGet.md</PackageReadmeFile>
-    <PackageReleaseNotes>Initial stable release of Nghex packages with standardized package metadata and documentation.</PackageReleaseNotes>
+    <PackageReleaseNotes>Nghex 1.0.1 patch release with packaging and NuGet publish automation updates.</PackageReleaseNotes>
   </PropertyGroup>
 
   <ItemGroup>

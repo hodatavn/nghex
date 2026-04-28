@@ -6,7 +6,7 @@
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>Nghex.Logging</PackageId>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <Authors>Alan</Authors>
     <Company>Nghex</Company>
     <Description>Provides centralized logging abstractions for consistent diagnostics in Nghex services.</Description>

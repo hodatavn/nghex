@@ -226,7 +226,8 @@ public class IdentityTableScript : IDbTableScript
         // Accounts — password: admin123
         """
         INSERT INTO SYS_ACCOUNTS (USERNAME, EMAIL, PASSWORD, DISPLAY_NAME, IS_ACTIVE, CREATED_BY) 
-        VALUES ('system', 'system@data-hub.com', '8AHtbeTKtkL/mYNhAi8LksjfUCQb3k3vhIQVZIgcNbIgoG5LqQT2GdolSUlKZWGX', 'System Account', 1, 'system')""",
+        VALUES ('system', 'system@data-hub.com', '8AHtbeTKtkL/mYNhAi8LksjfUCQb3k3vhIQVZIgcNbIgoG5LqQT2GdolSUlKZWGX', 'System Account', 1, 'system')
+        """,
         """
         INSERT INTO SYS_ACCOUNT_ROLES (ACCOUNT_ID, ROLE_ID)
         SELECT A.ID, R.ID FROM SYS_ACCOUNTS A, SYS_ROLES R
@@ -235,7 +236,8 @@ public class IdentityTableScript : IDbTableScript
 
         """
         INSERT INTO SYS_ACCOUNTS (USERNAME, EMAIL, PASSWORD, DISPLAY_NAME, IS_ACTIVE, CREATED_BY) 
-        VALUES ('admin', 'admin@data-hub.com', '8AHtbeTKtkL/mYNhAi8LksjfUCQb3k3vhIQVZIgcNbIgoG5LqQT2GdolSUlKZWGX', 'Administrator', 1, 'system')""",
+        VALUES ('admin', 'admin@data-hub.com', '8AHtbeTKtkL/mYNhAi8LksjfUCQb3k3vhIQVZIgcNbIgoG5LqQT2GdolSUlKZWGX', 'Administrator', 1, 'system')
+        """,
         """
         INSERT INTO SYS_ACCOUNT_ROLES (ACCOUNT_ID, ROLE_ID)
         SELECT A.ID, R.ID FROM SYS_ACCOUNTS A, SYS_ROLES R
