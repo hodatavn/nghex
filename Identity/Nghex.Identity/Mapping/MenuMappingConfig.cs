@@ -1,26 +1,18 @@
 using Mapster;
-using Nghex.Identity.DTOs.Menus;
-using Nghex.Base.Entities;
+using Nghex.Identity.Api.Models.Requests;
+using Nghex.Identity.Api.Models.Responses;
 using Nghex.Identity.Persistence.Entities;
 
 namespace Nghex.Identity.Mapping;
 
-/// <summary>
-/// Mapster mapping configuration for Menu domain
-/// </summary>
 public static class MenuMappingConfig
 {
-    /// <summary>
-    /// Configure Menu mappings
-    /// </summary>
     public static void Configure()
     {
-        // Entity -> DTO
-        TypeAdapterConfig<MenuItemEntity, MenuItemDto>.NewConfig()
-            .Ignore(dest => dest.Children!);
+        TypeAdapterConfig<MenuItemEntity, MenuItemResponse>.NewConfig()
+            .Map(dest => dest.MenuId, src => src.Id);
 
-        // CreateDto -> Entity
-        TypeAdapterConfig<CreateMenuItemDto, MenuItemEntity>.NewConfig()
+        TypeAdapterConfig<CreateMenuItemRequest, MenuItemEntity>.NewConfig()
             .Map(dest => dest.MenuKey, src => src.MenuKey)
             .Map(dest => dest.ParentKey, src => src.ParentKey)
             .Map(dest => dest.Title, src => src.Title)
@@ -34,11 +26,9 @@ public static class MenuMappingConfig
             .Ignore(dest => dest.Id!)
             .Ignore(dest => dest.CreatedAt!)
             .Ignore(dest => dest.UpdatedAt!)
-            .Ignore(dest => dest.UpdatedBy!)
-            .Ignore(dest => dest.PluginName!);
+            .Ignore(dest => dest.UpdatedBy!);
 
-        // UpdateDto -> Entity
-        TypeAdapterConfig<UpdateMenuItemDto, MenuItemEntity>.NewConfig()
+        TypeAdapterConfig<UpdateMenuItemRequest, MenuItemEntity>.NewConfig()
             .Map(dest => dest.MenuKey, src => src.MenuKey)
             .Map(dest => dest.ParentKey, src => src.ParentKey)
             .Map(dest => dest.Title, src => src.Title)
@@ -52,7 +42,6 @@ public static class MenuMappingConfig
             .Ignore(dest => dest.Id!)
             .Ignore(dest => dest.CreatedAt!)
             .Ignore(dest => dest.CreatedBy!)
-            .Ignore(dest => dest.UpdatedAt!)
-            .Ignore(dest => dest.PluginName!);
+            .Ignore(dest => dest.UpdatedAt!);
     }
 }

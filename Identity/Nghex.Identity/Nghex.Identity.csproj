@@ -32,6 +32,7 @@
     <ProjectReference Include="..\..\Core\Nghex.Core\Nghex.Core.csproj" />
     <ProjectReference Include="..\..\Logging\Nghex.Logging\Nghex.Logging.csproj" />
     <ProjectReference Include="..\..\Plugins\Nghex.Plugins\Nghex.Plugins.csproj" />
+    <ProjectReference Include="..\..\Plugins\Nghex.Plugins.Abstractions\Nghex.Plugins.Abstractions.csproj" />
     <ProjectReference Include="..\..\Infrastructure\Nghex.Data\Nghex.Data.csproj" />
     <ProjectReference Include="..\..\Licensing\Nghex.Licensing\Nghex.Licensing.csproj" />
     <ProjectReference Include="..\..\Infrastructure\Nghex.Base.Abstractions\Nghex.Base.Abstractions.csproj" />

@@ -9,7 +9,7 @@ namespace Nghex.Identity.Models
         public string MenuKey { get; set; } = string.Empty;
         public string? ParentKey { get; set; }
         public string Title { get; set; } = string.Empty;
-        public string? Route { get; set; }
+        public string? Route { get; set; }  
         public string? Icon { get; set; }
         public string? PluginName { get; set; }
         public string? PermissionPrefix { get; set; }

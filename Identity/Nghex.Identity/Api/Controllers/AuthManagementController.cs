@@ -1,13 +1,8 @@
-using Mapster;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
-using Nghex.Identity.Api.Models.AccountRole;
-using Nghex.Identity.Api.Models.MenuItemPermission;
-using Nghex.Identity.Api.Models.Permission;
-using Nghex.Identity.Api.Models.Role;
-using Nghex.Identity.Api.Models.RolePermission;
+using Nghex.Identity.Api.Models.Requests;
+using Nghex.Identity.Api.Models.Responses;
 using Nghex.Web.AspNetCore.Controllers;
 using Nghex.Web.AspNetCore.Models;
 using Nghex.Core.Enum;
@@ -37,23 +32,23 @@ namespace Nghex.Identity.Api.Controllers
         /// </summary>
         [AuthorizeByRoleLevel(RoleLevel.SuperAdmin, RoleLevel.Admin)]
         [HttpGet("roles-of-account/{accountId}")]
-        public async Task<ActionResult<RoleListResponseModel>> GetRolesOfAccount(long accountId)
+        public async Task<ActionResult<RoleListResponse>> GetRolesOfAccount(long accountId)
         {
             StartProcessing();
 
             try
             {
                 if (accountId <= 0)
-                    return Error<RoleListResponseModel>("Account ID is invalid", "VALIDATION_ERROR");
+                    return Error<RoleListResponse>("Account ID is invalid", "VALIDATION_ERROR");
 
-                var roleDtos = await _authManagementService.GetRolesOfAccountAsync(accountId);
-                var roleList = roleDtos.Select(r => r.Adapt<RoleResponseModel>()).ToList();
+                var roles = await _authManagementService.GetRolesOfAccountAsync(accountId);
+                var roleList = roles.ToList();
 
-                return await SuccessAsync(new RoleListResponseModel { Roles = roleList, TotalCount = roleList.Count }, "Roles retrieved successfully");
+                return await SuccessAsync(new RoleListResponse { Roles = roleList, TotalCount = roleList.Count }, "Roles retrieved successfully");
             }
             catch (Exception ex)
             {
-                return await HandleExceptionAsync<RoleListResponseModel>(ex, "Failed to get roles for account");
+                return await HandleExceptionAsync<RoleListResponse>(ex, "Failed to get roles for account");
             }
             finally
             {
@@ -68,7 +63,7 @@ namespace Nghex.Identity.Api.Controllers
         /// </summary>
         [AuthorizeByRoleLevel(RoleLevel.SuperAdmin, RoleLevel.Admin)]
         [HttpPost("assign-roles-to-account/{accountId}")]
-        public async Task<ActionResult<GenericResponseModel>> AssignRolesToAccount(long accountId, [FromBody] AssignRoleRequestModel request)
+        public async Task<ActionResult<GenericResponseModel>> AssignRolesToAccount(long accountId, [FromBody] AssignRoleRequest request)
         {
             StartProcessing();
 
@@ -89,9 +84,8 @@ namespace Nghex.Identity.Api.Controllers
                 if (!success)
                     return Error<GenericResponseModel>("Failed to update roles for account", "UPDATE_FAILED");
 
-                // Get updated roles
                 var roles = await _authManagementService.GetRolesOfAccountAsync(accountId);
-                var roleList = roles.Select(r => r.Adapt<RoleResponseModel>()).ToList();
+                var roleList = roles.ToList();
 
                 return await SuccessAsync(new GenericResponseModel { Data = new { AccountId = accountId, Roles = roleList }, TotalCount = roleList.Count }, "Roles assigned successfully");
             }
@@ -145,19 +139,19 @@ namespace Nghex.Identity.Api.Controllers
         /// </summary>
         [AuthorizeByRoleLevel(RoleLevel.SuperAdmin, RoleLevel.Admin)]
         [HttpGet("permissions-of-role/{roleId}")]
-        public async Task<ActionResult<PermissionListResponseModel>> GetPermissionsOfRole(long roleId)
+        public async Task<ActionResult<PermissionListResponse>> GetPermissionsOfRole(long roleId)
         {
             StartProcessing();
 
             try
             {
                 if (roleId <= 0)
-                    return Error<PermissionListResponseModel>("Role ID is invalid", "VALIDATION_ERROR");
+                    return Error<PermissionListResponse>("Role ID is invalid", "VALIDATION_ERROR");
 
-                var permissionDtos = await _authManagementService.GetPermissionsOfRoleAsync(roleId);
+                var permissions = await _authManagementService.GetPermissionsOfRoleAsync(roleId);
+                var permissionList = permissions.ToList();
 
-                // Build tree structure: PluginName -> Module -> Permission list (group DTOs first, then map)
-                var permissionTree = permissionDtos
+                var permissionTree = permissionList
                     .GroupBy(p => p.PluginName ?? "Core")
                     .Select(pluginGroup => new PluginNode
                     {
@@ -167,15 +161,13 @@ namespace Nghex.Identity.Api.Controllers
                             .Select(moduleGroup => new ModuleNode
                             {
                                 Module = moduleGroup.Key,
-                                Permissions = moduleGroup.Select(p => p.Adapt<PermissionResponseModel>()).ToList()
+                                Permissions = moduleGroup.ToList()
                             })
                             .ToList()
                     })
                     .ToList();
 
-                var permissionList = permissionDtos.Select(p => p.Adapt<PermissionResponseModel>()).ToList();
-
-                var response = new PermissionListResponseModel
+                var response = new PermissionListResponse
                 {
                     PermissionTree = permissionTree,
                     TotalCount = permissionList.Count
@@ -185,7 +177,7 @@ namespace Nghex.Identity.Api.Controllers
             }
             catch (Exception ex)
             {
-                return await HandleExceptionAsync<PermissionListResponseModel>(ex, "Failed to get permissions for role");
+                return await HandleExceptionAsync<PermissionListResponse>(ex, "Failed to get permissions for role");
             }
             finally
             {
@@ -198,7 +190,7 @@ namespace Nghex.Identity.Api.Controllers
         /// </summary>
         [AuthorizeByRoleLevel(RoleLevel.SuperAdmin, RoleLevel.Admin)]
         [HttpPost("grant-permissions-to-role/{roleId}")]
-        public async Task<ActionResult<GenericResponseModel>> GrantPermissionsToRole(long roleId, [FromBody] GrantPermissionRequestModel request)
+        public async Task<ActionResult<GenericResponseModel>> GrantPermissionsToRole(long roleId, [FromBody] GrantPermissionRequest request)
         {
             StartProcessing();
 
@@ -220,9 +212,7 @@ namespace Nghex.Identity.Api.Controllers
                 if (!success)
                     return Error<GenericResponseModel>("Failed to update permissions for role", "UPDATE_FAILED");
 
-                // Get updated permissions
-                var permissions = await _authManagementService.GetPermissionsOfRoleAsync(roleId);
-                var permissionList = permissions.Select(p => p.Adapt<PermissionResponseModel>()).ToList();
+                var permissionList = (await _authManagementService.GetPermissionsOfRoleAsync(roleId)).ToList();
 
                 return await SuccessAsync(new GenericResponseModel { Data = new { RoleId = roleId, Permissions = permissionList }, TotalCount = permissionList.Count }, "Permissions granted successfully");
             }
@@ -283,19 +273,18 @@ namespace Nghex.Identity.Api.Controllers
         /// </summary>
         [AuthorizeByRoleLevel(RoleLevel.SuperAdmin, RoleLevel.Admin)]
         [HttpGet("permission-candidates-on-menu/{menuKey}")]
-        public async Task<ActionResult<AuthPermissionListResponseModel>> GetPermissionCandidatesOfMenu(string menuKey)
+        public async Task<ActionResult<AuthPermissionListResponse>> GetPermissionCandidatesOfMenu(string menuKey)
         {
             StartProcessing();
 
             try
             {
                 if (string.IsNullOrWhiteSpace(menuKey))
-                    return Error<AuthPermissionListResponseModel>("Menu key is invalid", "VALIDATION_ERROR");
+                    return Error<AuthPermissionListResponse>("Menu key is invalid", "VALIDATION_ERROR");
 
-                var permissionDtos = await _authManagementService.GetPermissionCandidatesOfMenuAsync(menuKey);
+                var permissionCandidates = (await _authManagementService.GetPermissionCandidatesOfMenuAsync(menuKey)).ToList();
 
-                // Build tree structure: PluginName -> Module -> Permission list
-                var permissionTree = permissionDtos
+                var permissionTree = permissionCandidates
                     .GroupBy(p => p.PluginName ?? "Core")
                     .Select(pluginGroup => new AuthPluginNode
                     {
@@ -305,23 +294,23 @@ namespace Nghex.Identity.Api.Controllers
                             .Select(moduleGroup => new AuthModuleNode
                             {
                                 Module = moduleGroup.Key,
-                                Permissions = moduleGroup.Select(p => p.Adapt<PermissionWithAssignStatusResponseModel>()).ToList()
+                                Permissions = moduleGroup.ToList()
                             })
                             .ToList()
                     })
                     .ToList();
 
-                var response = new AuthPermissionListResponseModel
+                var response = new AuthPermissionListResponse
                 {
                     PermissionTree = permissionTree,
-                    TotalCount = permissionDtos.Count()
+                    TotalCount = permissionCandidates.Count
                 };
 
                 return await SuccessAsync(response, "Permission candidates retrieved successfully");
             }
             catch (Exception ex)
             {
-                return await HandleExceptionAsync<AuthPermissionListResponseModel>(ex, "Failed to get permission candidates for menu");
+                return await HandleExceptionAsync<AuthPermissionListResponse>(ex, "Failed to get permission candidates for menu");
             }
             finally
             {
@@ -335,7 +324,7 @@ namespace Nghex.Identity.Api.Controllers
         /// </summary>
         [AuthorizeByRoleLevel(RoleLevel.SuperAdmin, RoleLevel.Admin)]
         [HttpPost("set-permissions-on-menu/{menuKey}")]
-        public async Task<ActionResult<GenericResponseModel>> SetPermissionsOnMenu(string menuKey, [FromBody] SetPermissionsOnMenuRequestModel request)
+        public async Task<ActionResult<GenericResponseModel>> SetPermissionsOnMenu(string menuKey, [FromBody] SetPermissionsOnMenuRequest request)
         {
             StartProcessing();
 
@@ -387,7 +376,7 @@ namespace Nghex.Identity.Api.Controllers
         /// </summary>
         [AuthorizeByRoleLevel(RoleLevel.SuperAdmin, RoleLevel.Admin)]
         [HttpDelete("remove-permissions-from-menu/{menuKey}")]
-        public async Task<ActionResult<GenericResponseModel>> RemovePermissionsFromMenu(string menuKey, [FromBody] RemoveMenuPermissionsRequestModel request)
+        public async Task<ActionResult<GenericResponseModel>> RemovePermissionsFromMenu(string menuKey, [FromBody] RemoveMenuPermissionsRequest request)
         {
             StartProcessing();
 

@@ -1,71 +1,61 @@
 using Mapster;
-using Nghex.Identity.DTOs.Permissions;
-using Nghex.Identity.DTOs.Roles;
+using Nghex.Identity.Api.Models.Requests;
+using Nghex.Identity.Api.Models.Responses;
 using Nghex.Identity.Enum;
 using Nghex.Core.Helper;
-using Nghex.Base.Entities;
 using Nghex.Identity.Persistence.Entities;
 using Nghex.Identity.Repositories.Accounts.Interfaces;
 using Nghex.Identity.Services.Interfaces;
 
 namespace Nghex.Identity.Services
 {
-    /// <summary>
-    /// Role Service implementation với business logic
-    /// </summary>
     public partial class RoleService(IRoleRepository roleRepository, IRolePermissionRepository rolePermissionRepository) : IRoleService
     {
         private readonly IRoleRepository _roleRepository = roleRepository;
         private readonly IRolePermissionRepository _rolePermissionRepository = rolePermissionRepository;
 
-        #region Basic CRUD Operations
-
-        public async Task<RoleDto?> GetByIdAsync(long id)
+        public async Task<RoleResponse?> GetByIdAsync(long id)
         {
             if (id <= 0) return null;
             var entity = await _roleRepository.GetByIdAsync(id);
-            return entity?.Adapt<RoleDto>();
+            return entity?.Adapt<RoleResponse>();
         }
 
-        public async Task<IEnumerable<RoleDto>> GetAllAsync(bool isDisabled)
+        public async Task<IEnumerable<RoleResponse>> GetAllAsync(bool isDisabled)
         {
             var entities = await _roleRepository.GetAllAsync(isDisabled);
-            return entities.Select(e => e.Adapt<RoleDto>());
+            return entities.Select(e => e.Adapt<RoleResponse>());
         }
 
-        public async Task<RoleDto> CreateAsync(CreateRoleDto createDto)
+        public async Task<RoleResponse> CreateAsync(CreateRoleRequest request)
         {
-            ArgumentNullException.ThrowIfNull(createDto);
+            ArgumentNullException.ThrowIfNull(request);
 
-            // Business validation only
-            await ValidateNewRoleAsync(createDto);
+            await ValidateNewRoleAsync(request);
 
-            // Map DTO to Entity
-            var entity = createDto.Adapt<RoleEntity>();
+            var entity = request.Adapt<RoleEntity>();
             var id = await _roleRepository.AddAsync(entity);
             entity.Id = id;
 
-            return entity.Adapt<RoleDto>();
+            return entity.Adapt<RoleResponse>();
         }
 
-        public async Task<bool> UpdateAsync(UpdateRoleDto updateDto)
+        public async Task<bool> UpdateAsync(UpdateRoleRequest request)
         {
-            ArgumentNullException.ThrowIfNull(updateDto);
+            ArgumentNullException.ThrowIfNull(request);
 
-            var existingEntity = await _roleRepository.GetByIdAsync(updateDto.Id);
+            var existingEntity = await _roleRepository.GetByIdAsync(request.Id);
             if (existingEntity == null)
                 throw new InvalidOperationException("Role not found");
 
-            // Business validation for update
-            ValidateUpdateRole(updateDto);
+            ValidateUpdateRole(request);
 
-            // Update fields from DTO
-            existingEntity.Code = updateDto.Code;
-            existingEntity.Name = updateDto.Name;
-            existingEntity.Description = updateDto.Description;
-            existingEntity.RoleLevel = updateDto.RoleLevel.FromLevel();
-            existingEntity.IsActive = updateDto.IsActive;
-            existingEntity.UpdatedBy = updateDto.UpdatedBy;
+            existingEntity.Code = request.Code;
+            existingEntity.Name = request.Name;
+            existingEntity.Description = request.Description;
+            existingEntity.RoleLevel = request.RoleLevel.FromLevel();
+            existingEntity.IsActive = request.IsActive;
+            existingEntity.UpdatedBy = request.UpdatedBy;
 
             return await _roleRepository.UpdateAsync(existingEntity);
         }
@@ -73,10 +63,8 @@ namespace Nghex.Identity.Services
         public async Task<bool> DeleteAsync(long id, string updatedBy)
         {
             var role = await _roleRepository.GetByIdAsync(id);
-            if (role == null)
-                return false;
+            if (role == null) return false;
 
-            // Business rules: cannot delete if has permissions or is system role
             if (await RoleHasPermissionAsync(id))
                 throw new InvalidOperationException("Role has permissions, cannot delete");
             if (role.RoleLevel == RoleLevel.SuperAdmin)
@@ -85,40 +73,24 @@ namespace Nghex.Identity.Services
             return await _roleRepository.DeleteAsync(id, updatedBy);
         }
 
-        #endregion
-        
         public async Task<bool> RoleHasPermissionAsync(long roleId)
         {
             return await _rolePermissionRepository.RoleHasPermissionAsync(roleId);
         }
 
-
-        #region Business Validation (no format validation - handled by Presentation layer)
-
-        /// <summary>
-        /// Validate new role - business rules only
-        /// </summary>
-        private async Task ValidateNewRoleAsync(CreateRoleDto dto)
+        private async Task ValidateNewRoleAsync(CreateRoleRequest request)
         {
-            // Business rule: code must be valid format
-            if (!ModelHelper.IsValidCode(dto.Code))
+            if (!ModelHelper.IsValidCode(request.Code))
                 throw new ArgumentException("Role code can only contain letters, numbers, and underscores");
 
-            // Business rule: code must be unique
-            if (await _roleRepository.CodeExistsAsync(dto.Code))
+            if (await _roleRepository.CodeExistsAsync(request.Code))
                 throw new ArgumentException("Role code already exists");
         }
 
-        /// <summary>
-        /// Validate update role - business rules only
-        /// </summary>
-        private static void ValidateUpdateRole(UpdateRoleDto dto)
+        private static void ValidateUpdateRole(UpdateRoleRequest request)
         {
-            // Business rule: code must be valid format
-            if (!ModelHelper.IsValidCode(dto.Code))
+            if (!ModelHelper.IsValidCode(request.Code))
                 throw new ArgumentException("Role code can only contain letters, numbers, and underscores");
         }
-
-        #endregion
     }
 }

@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Nghex.Data.Setup;
+using Nghex.Logging.Setup;
 using System.Reflection;
 
 namespace Nghex.Logging.Api.Extensions;
@@ -9,6 +11,7 @@ public static class LoggingAspNetCoreRegistration
 {
     public static IServiceCollection AddLoggingAspNetCore(this IServiceCollection services, IConfiguration configuration)
     {
+        services.AddSingleton<IDbTableScript, LoggingTableScript>();
         return services;
     }
 

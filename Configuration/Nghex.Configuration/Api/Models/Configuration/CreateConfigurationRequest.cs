@@ -52,6 +52,8 @@ namespace Nghex.Configuration.Api.Models
         /// </summary>
         public bool IsActive { get; set; } = true;
 
+        public string CreatedBy { get; set; } = string.Empty;
+
         public override bool IsValid()
         {
             return base.IsValid() && 

@@ -1,7 +1,7 @@
 using Mapster;
 using Microsoft.Extensions.Configuration;
 using System.Text.Json;
-using Nghex.Configuration.DTOs;
+using Nghex.Configuration.Api.Models;
 using Nghex.Core.Configuration;
 using Nghex.Core.Helper;
 using Nghex.Core.Logging;
@@ -9,14 +9,10 @@ using Nghex.Configuration.Persistence.Entities;
 using Nghex.Configuration.Repositories.Interfaces;
 using Nghex.Configuration.Services.Interfaces;
 
-
 namespace Nghex.Configuration.Services
 {
-    /// <summary>
-    /// Configuration Service implementation
-    /// </summary>
     public class ConfigurationService(
-        IConfigurationRepository configurationRepository, 
+        IConfigurationRepository configurationRepository,
         IConfiguration configuration,
         ILogging loggingService
         ) : IConfigurationService
@@ -30,18 +26,18 @@ namespace Nghex.Configuration.Services
 
         #region Read Operations
 
-        public async Task<ConfigurationDto?> GetByIdAsync(long id)
+        public async Task<ConfigurationResponseModel?> GetByIdAsync(long id)
         {
             if (id <= 0) return null;
             var entity = await _configurationRepository.GetByIdAsync(id);
-            return entity?.Adapt<ConfigurationDto>();
+            return entity?.Adapt<ConfigurationResponseModel>();
         }
 
-        public async Task<ConfigurationDto?> GetByKeyAsync(string key)
+        public async Task<ConfigurationResponseModel?> GetByKeyAsync(string key)
         {
             if (string.IsNullOrWhiteSpace(key)) return null;
             var entity = await _configurationRepository.GetByKeyAsync(key);
-            return entity?.Adapt<ConfigurationDto>();
+            return entity?.Adapt<ConfigurationResponseModel>();
         }
 
         public async Task<bool> KeyExistsAsync(string key)
@@ -51,17 +47,17 @@ namespace Nghex.Configuration.Services
             return configuration != null;
         }
 
-        public async Task<IEnumerable<ConfigurationDto>> GetAllAsync(bool isActive)
+        public async Task<IEnumerable<ConfigurationResponseModel>> GetAllAsync(bool isActive)
         {
             var entities = await _configurationRepository.GetAllAsync(isActive);
-            return entities.Select(e => e.Adapt<ConfigurationDto>());
+            return entities.Select(e => e.Adapt<ConfigurationResponseModel>());
         }
 
-        public async Task<IEnumerable<ConfigurationDto>> GetByModuleAsync(string module)
+        public async Task<IEnumerable<ConfigurationResponseModel>> GetByModuleAsync(string module)
         {
             if (string.IsNullOrWhiteSpace(module)) return [];
             var entities = await _configurationRepository.GetByModuleAsync(module);
-            return entities.Select(e => e.Adapt<ConfigurationDto>());
+            return entities.Select(e => e.Adapt<ConfigurationResponseModel>());
         }
 
         #endregion
@@ -107,7 +103,7 @@ namespace Nghex.Configuration.Services
             var fromApp = AppSettingsConfigurationReader.GetAppSettingValueFromConfiguration(_configuration, key);
             return int.TryParse(fromApp, out var r) ? r : defaultValue;
         }
-        
+
         public async Task<bool> GetBoolValueAsync(string key)
         {
             var configuration = await _configurationRepository.GetByKeyAsync(key);
@@ -132,7 +128,7 @@ namespace Nghex.Configuration.Services
             var fromApp = AppSettingsConfigurationReader.GetAppSettingValueFromConfiguration(_configuration, key);
             return DateTime.TryParse(fromApp, out var r) ? r : null;
         }
-        
+
         public async Task<T?> GetJsonValueAsync<T>(string key) where T : class
         {
             var configuration = await _configurationRepository.GetByKeyAsync(key);
@@ -160,44 +156,40 @@ namespace Nghex.Configuration.Services
 
         #region Write Operations
 
-        public async Task<ConfigurationDto> CreateAsync(CreateConfigurationDto createDto)
+        public async Task<ConfigurationResponseModel> CreateAsync(CreateConfigurationRequest input)
         {
-            ArgumentNullException.ThrowIfNull(createDto);
+            ArgumentNullException.ThrowIfNull(input);
 
-            // Business validation only
-            await ValidateNewConfigurationAsync(createDto);
+            await ValidateNewConfigurationAsync(input);
 
-            var entity = createDto.Adapt<ConfigurationEntity>();
+            var entity = input.Adapt<ConfigurationEntity>();
             var id = await _configurationRepository.AddAsync(entity);
             entity.Id = id;
 
-            return entity.Adapt<ConfigurationDto>();
+            return entity.Adapt<ConfigurationResponseModel>();
         }
 
-        public async Task<bool> UpdateAsync(UpdateConfigurationDto updateDto)
+        public async Task<bool> UpdateAsync(UpdateConfigurationRequest input)
         {
-            ArgumentNullException.ThrowIfNull(updateDto);
+            ArgumentNullException.ThrowIfNull(input);
 
-            var existingEntity = await _configurationRepository.GetByIdAsync(updateDto.Id);
+            var existingEntity = await _configurationRepository.GetByIdAsync(input.Id);
             if (existingEntity == null)
                 throw new InvalidOperationException("Configuration not found");
 
-            // Business rule: cannot update non-editable config
             if (!existingEntity.IsEditable)
                 throw new InvalidOperationException("Configuration is not editable");
 
-            // Business validation for update
-            ValidateUpdateConfiguration(updateDto);
+            ValidateUpdateConfiguration(input);
 
-            // Update fields from DTO
-            existingEntity.Value = updateDto.Value;
-            existingEntity.Description = updateDto.Description;
-            existingEntity.Module = updateDto.Module;
-            existingEntity.DataType = updateDto.DataType;
-            existingEntity.DefaultValue = updateDto.DefaultValue;
-            existingEntity.IsEditable = updateDto.IsEditable;
-            existingEntity.IsActive = updateDto.IsActive;
-            existingEntity.UpdatedBy = updateDto.UpdatedBy ?? "system";
+            existingEntity.Value = input.Value;
+            existingEntity.Description = input.Description;
+            existingEntity.Module = input.Module;
+            existingEntity.DataType = input.DataType;
+            existingEntity.DefaultValue = input.DefaultValue;
+            existingEntity.IsEditable = input.IsEditable;
+            existingEntity.IsActive = input.IsActive;
+            existingEntity.UpdatedBy = input.UpdatedBy ?? "system";
 
             return await _configurationRepository.UpdateAsync(existingEntity);
         }
@@ -205,8 +197,7 @@ namespace Nghex.Configuration.Services
         public async Task<bool> ResetToDefaultAsync(long id, string updatedBy)
         {
             var configuration = await _configurationRepository.GetByIdAsync(id);
-            if (configuration == null)
-                return false;
+            if (configuration == null) return false;
 
             if (!configuration.IsEditable)
                 throw new InvalidOperationException("Configuration is not editable");
@@ -231,7 +222,7 @@ namespace Nghex.Configuration.Services
             {
                 try
                 {
-                    var createDto = new CreateConfigurationDto
+                    var input = new CreateConfigurationRequest
                     {
                         Key = kvp.Key,
                         Value = kvp.Value?.ToString() ?? string.Empty,
@@ -239,12 +230,11 @@ namespace Nghex.Configuration.Services
                         DataType = "string",
                         CreatedBy = createdBy
                     };
-                    await CreateAsync(createDto);
+                    await CreateAsync(input);
                     importedCount++;
                 }
                 catch (Exception ex)
                 {
-                    // Log import errors for debugging
                     await _loggingService.LogErrorAsync(
                         $"Error importing configuration key: {kvp.Key}",
                         ex,
@@ -274,41 +264,29 @@ namespace Nghex.Configuration.Services
 
         #endregion
 
-        #region Business Validation (no format validation - handled by Presentation layer)
+        #region Business Validation
 
-        /// <summary>
-        /// Validate new configuration - business rules only
-        /// </summary>
-        private async Task ValidateNewConfigurationAsync(CreateConfigurationDto dto)
+        private async Task ValidateNewConfigurationAsync(CreateConfigurationRequest input)
         {
-            // Business rule: key must be valid code format
-            if (!ModelHelper.IsValidCode(dto.Key))
+            if (!ModelHelper.IsValidCode(input.Key))
                 throw new ArgumentException("Configuration key can only contain letters, numbers, and underscores");
 
-            // Business rule: key must be unique
-            if (await KeyExistsAsync(dto.Key))
+            if (await KeyExistsAsync(input.Key))
                 throw new ArgumentException("Configuration key already exists");
 
-            // Business rule: data type must be valid
-            if (!ValidDataTypes.Contains(dto.DataType, StringComparer.OrdinalIgnoreCase))
+            if (!ValidDataTypes.Contains(input.DataType, StringComparer.OrdinalIgnoreCase))
                 throw new ArgumentException($"Data type must be one of: {string.Join(", ", ValidDataTypes)}");
 
-            // Business rule: module must be valid format if provided
-            if (!string.IsNullOrWhiteSpace(dto.Module) && !ModelHelper.IsValidModule(dto.Module))
+            if (!string.IsNullOrWhiteSpace(input.Module) && !ModelHelper.IsValidModule(input.Module))
                 throw new ArgumentException("Module can only contain letters, numbers, underscores, and dots");
         }
 
-        /// <summary>
-        /// Validate update configuration - business rules only
-        /// </summary>
-        private static void ValidateUpdateConfiguration(UpdateConfigurationDto dto)
+        private static void ValidateUpdateConfiguration(UpdateConfigurationRequest input)
         {
-            // Business rule: data type must be valid
-            if (!ValidDataTypes.Contains(dto.DataType, StringComparer.OrdinalIgnoreCase))
+            if (!ValidDataTypes.Contains(input.DataType, StringComparer.OrdinalIgnoreCase))
                 throw new ArgumentException($"Data type must be one of: {string.Join(", ", ValidDataTypes)}");
 
-            // Business rule: module must be valid format if provided
-            if (!string.IsNullOrWhiteSpace(dto.Module) && !ModelHelper.IsValidModule(dto.Module))
+            if (!string.IsNullOrWhiteSpace(input.Module) && !ModelHelper.IsValidModule(input.Module))
                 throw new ArgumentException("Module can only contain letters, numbers, underscores, and dots");
         }
 

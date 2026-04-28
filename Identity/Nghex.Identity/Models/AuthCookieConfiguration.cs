@@ -79,6 +79,6 @@ namespace Nghex.Identity.Models
         /// Whether to still return access/refresh tokens in JSON response body (backward compatibility).
         /// If false, API will only return user info + expiry.
         /// </summary>
-        public bool ReturnTokensInBody { get; set; } = true;
+        public bool ReturnTokensInBody { get; set; } = false;
     }
 }

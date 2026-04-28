@@ -1,25 +1,18 @@
 using Mapster;
-using Nghex.Identity.DTOs.Accounts;
-using Nghex.Base.Entities;
+using Nghex.Identity.Api.Models.Requests;
+using Nghex.Identity.Api.Models.Responses;
 using Nghex.Identity.Persistence.Entities;
 
 namespace Nghex.Identity.Mapping;
 
-/// <summary>
-/// Mapster mapping configuration for Account domain
-/// </summary>
 public static class AccountMappingConfig
 {
-    /// <summary>
-    /// Configure Account mappings
-    /// </summary>
     public static void Configure()
     {
-        // Entity -> DTO
-        TypeAdapterConfig<AccountEntity, AccountDto>.NewConfig();
+        TypeAdapterConfig<AccountEntity, AccountResponse>.NewConfig()
+            .Map(dest => dest.AccountId, src => src.Id);
 
-        // CreateDto -> Entity
-        TypeAdapterConfig<CreateAccountDto, AccountEntity>.NewConfig()
+        TypeAdapterConfig<CreateAccountRequest, AccountEntity>.NewConfig()
             .Map(dest => dest.Username, src => src.Username)
             .Map(dest => dest.Password, src => src.Password)
             .Map(dest => dest.Email, src => src.Email)
@@ -37,8 +30,7 @@ public static class AccountMappingConfig
             .Ignore(dest => dest.LockedUntil!)
             .Ignore(dest => dest.IpAddress!);
 
-        // UpdateDto -> Entity
-        TypeAdapterConfig<UpdateAccountDto, AccountEntity>.NewConfig()
+        TypeAdapterConfig<UpdateAccountRequest, AccountEntity>.NewConfig()
             .Map(dest => dest.Username, src => src.Username)
             .Map(dest => dest.Email, src => src.Email)
             .Map(dest => dest.DisplayName, src => src.DisplayName)

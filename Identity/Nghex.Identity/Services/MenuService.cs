@@ -1,19 +1,16 @@
 using Mapster;
-using Nghex.Identity.DTOs.Menus;
+using Nghex.Identity.Api.Models.Requests;
+using Nghex.Identity.Api.Models.Responses;
 using Nghex.Core.Helper;
 using Nghex.Identity.Models;
-using Nghex.Base.Entities;
 using Nghex.Identity.Persistence.Entities;
 using Nghex.Identity.Repositories.Menu.Interfaces;
 using Nghex.Identity.Services.Interfaces;
 
 namespace Nghex.Identity.Services
 {
-    /// <summary>
-    /// Server-driven menu service: loads menu catalog from DB, filters by permissions, and builds a tree.
-    /// </summary>
     public class MenuService(
-        IMenuRepository menuRepository, 
+        IMenuRepository menuRepository,
         IMenuItemPermissionRepository menuItemPermissionRepository,
         IMenuAccessQueryRepository menuAccessQueryRepository) : IMenuService
     {
@@ -23,64 +20,59 @@ namespace Nghex.Identity.Services
 
         #region CRUD Operations
 
-        public async Task<MenuItemDto?> GetByMenuKeyAsync(string menuKey)
+        public async Task<MenuItemResponse?> GetByMenuKeyAsync(string menuKey)
         {
             if (string.IsNullOrWhiteSpace(menuKey)) return null;
             var entity = await _menuRepository.GetMenuByKeyAsync(menuKey);
-            return entity?.Adapt<MenuItemDto>();
+            return entity?.Adapt<MenuItemResponse>();
         }
 
-        public async Task<IEnumerable<MenuItemDto>> GetAllAsync(bool activeOnly = true)
+        public async Task<IEnumerable<MenuItemResponse>> GetAllAsync(bool activeOnly = true)
         {
             var entities = await _menuRepository.GetAllAsync(activeOnly);
-            return entities.Select(e => e.Adapt<MenuItemDto>());
+            return entities.Select(e => e.Adapt<MenuItemResponse>());
         }
 
-        public async Task<MenuItemDto> CreateAsync(CreateMenuItemDto createDto)
+        public async Task<MenuItemResponse> CreateAsync(CreateMenuItemRequest request)
         {
-            ArgumentNullException.ThrowIfNull(createDto);
-            
-            // Business validation only
-            await ValidateNewMenuItemAsync(createDto);
-            
-            var entity = createDto.Adapt<MenuItemEntity>();
+            ArgumentNullException.ThrowIfNull(request);
+
+            await ValidateNewMenuItemAsync(request);
+
+            var entity = request.Adapt<MenuItemEntity>();
             var id = await _menuRepository.AddAsync(entity);
             entity.Id = id;
-            
-            return entity.Adapt<MenuItemDto>();
+
+            return entity.Adapt<MenuItemResponse>();
         }
 
-        public async Task<bool> UpdateAsync(UpdateMenuItemDto updateDto)
+        public async Task<bool> UpdateAsync(UpdateMenuItemRequest request)
         {
-            ArgumentNullException.ThrowIfNull(updateDto);
-            
-            var existingEntity = await _menuRepository.GetByIdAsync(updateDto.Id);
+            ArgumentNullException.ThrowIfNull(request);
+
+            var existingEntity = await _menuRepository.GetByIdAsync(request.Id);
             if (existingEntity == null)
                 throw new InvalidOperationException("Menu item not found");
 
-            // Business validation for update
-            ValidateUpdateMenuItem(updateDto);
+            ValidateUpdateMenuItem(request);
 
-            // Update fields from DTO
-            existingEntity.ParentKey = updateDto.ParentKey;
-            existingEntity.Title = updateDto.Title;
-            existingEntity.Route = updateDto.Route;
-            existingEntity.Icon = updateDto.Icon;
-            existingEntity.PermissionPrefix = updateDto.PermissionPrefix;
-            existingEntity.SortOrder = updateDto.SortOrder;
-            existingEntity.IsActive = updateDto.IsActive;
-            existingEntity.UpdatedBy = updateDto.UpdatedBy;
-            
+            existingEntity.ParentKey = request.ParentKey;
+            existingEntity.Title = request.Title;
+            existingEntity.Route = request.Route;
+            existingEntity.Icon = request.Icon;
+            existingEntity.PermissionPrefix = request.PermissionPrefix;
+            existingEntity.SortOrder = request.SortOrder;
+            existingEntity.IsActive = request.IsActive;
+            existingEntity.UpdatedBy = request.UpdatedBy;
+
             return await _menuRepository.UpdateAsync(existingEntity);
         }
 
         public async Task<bool> DeleteAsync(long id, string deletedBy)
         {
             var menu = await _menuRepository.GetByIdAsync(id);
-            if (menu == null)
-                return false;
+            if (menu == null) return false;
 
-            // Business rule: cannot delete if has permissions assigned
             if (await _menuItemPermissionRepository.MenuHasPermissionAsync(menu.MenuKey))
                 throw new InvalidOperationException("Menu has permissions assigned, cannot delete");
 
@@ -108,7 +100,7 @@ namespace Nghex.Identity.Services
         #endregion
 
         #region Build Menu Tree
-        
+
         public async Task<IReadOnlyList<MenuNodeDto>> GetMenuTreeFromPermissionsAsync(IEnumerable<string> permissionCodes)
         {
             if (_menuRepository is IMenuAccessQueryRepository accessRepo)
@@ -117,7 +109,6 @@ namespace Nghex.Identity.Services
                 return BuildTree(rows);
             }
 
-            // Fallback: load all and filter in-memory
             var permissionSet = new HashSet<string>(
                 permissionCodes.Where(c => !string.IsNullOrWhiteSpace(c)).Select(c => c.Trim()),
                 StringComparer.OrdinalIgnoreCase);
@@ -229,34 +220,23 @@ namespace Nghex.Identity.Services
 
         #endregion
 
+        #region Business Validation
 
-        #region Business Validation (no format validation - handled by Presentation layer)
-
-        /// <summary>
-        /// Validate new menu item - business rules only
-        /// </summary>
-        private async Task ValidateNewMenuItemAsync(CreateMenuItemDto dto)
+        private async Task ValidateNewMenuItemAsync(CreateMenuItemRequest request)
         {
-            // Business rule: menu key must be valid format
-            if (!ModelHelper.IsValidKey(dto.MenuKey))
+            if (!ModelHelper.IsValidKey(request.MenuKey))
                 throw new ArgumentException("Menu key can only contain letters, numbers, underscores, and dots");
 
-            // Business rule: menu key must be unique
-            if (await _menuRepository.MenuKeyExistsAsync(dto.MenuKey))
+            if (await _menuRepository.MenuKeyExistsAsync(request.MenuKey))
                 throw new ArgumentException("Menu key already exists");
 
-            // Business rule: parent key must be valid format if provided
-            if (!string.IsNullOrWhiteSpace(dto.ParentKey) && !ModelHelper.IsValidKey(dto.ParentKey))
+            if (!string.IsNullOrWhiteSpace(request.ParentKey) && !ModelHelper.IsValidKey(request.ParentKey))
                 throw new ArgumentException("Parent key can only contain letters, numbers, underscores, and dots");
         }
 
-        /// <summary>
-        /// Validate update menu item - business rules only
-        /// </summary>
-        private static void ValidateUpdateMenuItem(UpdateMenuItemDto dto)
+        private static void ValidateUpdateMenuItem(UpdateMenuItemRequest request)
         {
-            // Business rule: parent key must be valid format if provided
-            if (!string.IsNullOrWhiteSpace(dto.ParentKey) && !ModelHelper.IsValidKey(dto.ParentKey))
+            if (!string.IsNullOrWhiteSpace(request.ParentKey) && !ModelHelper.IsValidKey(request.ParentKey))
                 throw new ArgumentException("Parent key can only contain letters, numbers, underscores, and dots");
         }
 

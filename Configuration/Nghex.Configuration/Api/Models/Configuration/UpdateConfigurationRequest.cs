@@ -10,5 +10,7 @@ namespace Nghex.Configuration.Api.Models
         /// </summary>
         [Required(ErrorMessage = "Configuration ID is required")]
         public long Id { get; set; }
+
+        public string UpdatedBy { get; set; } = string.Empty;
     }
 }

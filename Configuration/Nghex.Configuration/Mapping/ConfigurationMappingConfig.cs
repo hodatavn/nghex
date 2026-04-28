@@ -1,24 +1,17 @@
 using Mapster;
-using Nghex.Configuration.DTOs;
+using Nghex.Configuration.Api.Models;
 using Nghex.Configuration.Persistence.Entities;
 
 namespace Nghex.Configuration.Mapping;
 
-/// <summary>
-/// Mapster mapping configuration for Configuration domain
-/// </summary>
 public static class ConfigurationMappingConfig
 {
-    /// <summary>
-    /// Configure Configuration mappings
-    /// </summary>
     public static void Configure()
     {
-        // Entity -> DTO
-        TypeAdapterConfig<ConfigurationEntity, ConfigurationDto>.NewConfig();
+        TypeAdapterConfig<ConfigurationEntity, ConfigurationResponseModel>.NewConfig()
+            .Map(dest => dest.ConfigurationId, src => src.Id);
 
-        // CreateDto -> Entity
-        TypeAdapterConfig<CreateConfigurationDto, ConfigurationEntity>.NewConfig()
+        TypeAdapterConfig<CreateConfigurationRequest, ConfigurationEntity>.NewConfig()
             .Map(dest => dest.Key, src => src.Key)
             .Map(dest => dest.Value, src => src.Value)
             .Map(dest => dest.Description, src => src.Description)
@@ -34,8 +27,7 @@ public static class ConfigurationMappingConfig
             .Ignore(dest => dest.UpdatedAt!)
             .Ignore(dest => dest.UpdatedBy!);
 
-        // UpdateDto -> Entity
-        TypeAdapterConfig<UpdateConfigurationDto, ConfigurationEntity>.NewConfig()
+        TypeAdapterConfig<UpdateConfigurationRequest, ConfigurationEntity>.NewConfig()
             .Map(dest => dest.Value, src => src.Value)
             .Map(dest => dest.Description, src => src.Description)
             .Map(dest => dest.DataType, src => src.DataType)

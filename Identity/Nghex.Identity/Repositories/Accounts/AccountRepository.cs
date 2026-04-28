@@ -92,8 +92,13 @@ namespace Nghex.Identity.Repositories
                     Email = :Email,
                     Display_Name = :Display_Name,
                     Is_Active = :Is_Active,
+                    Is_Locked = :Is_Locked,
+                    Locked_Until = :Locked_Until,
+                    Failed_Login_Attempts = :Failed_Login_Attempts,
+                    Ip_Address = :Ip_Address,
+                    Last_Login_At = :Last_Login_At,
                     Updated_At = SYSDATE,
-                    Updated_By = Username
+                    Updated_By = :Updated_By
                 WHERE Username = :Username AND Is_Deleted = 0";
 
             var parameters = new DynamicParameters();
@@ -101,6 +106,12 @@ namespace Nghex.Identity.Repositories
             parameters.Add("Email", account.Email, DbType.String);
             parameters.Add("Display_Name", account.DisplayName, DbType.String);
             parameters.Add("Is_Active", account.IsActive ? 1 : 0, DbType.Int32);
+            parameters.Add("Is_Locked", account.IsLocked ? 1 : 0, DbType.Int32);
+            parameters.Add("Locked_Until", account.LockedUntil, DbType.DateTime);
+            parameters.Add("Failed_Login_Attempts", account.FailedLoginAttempts, DbType.Int32);
+            parameters.Add("Ip_Address", account.IpAddress, DbType.String);
+            parameters.Add("Last_Login_At", account.LastLoginAt, DbType.DateTime);
+            parameters.Add("Updated_By", account.UpdatedBy, DbType.String);
             var rowsAffected = await databaseExecutor.ExecuteNonQueryAsync(query, parameters);
             return rowsAffected > 0;
         }

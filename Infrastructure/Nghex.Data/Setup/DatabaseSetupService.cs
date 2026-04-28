@@ -1,4 +1,3 @@
-using System.Text;
 using Dapper;
 using Microsoft.Extensions.Configuration;
 using Nghex.Data.Factory.Interfaces;
@@ -13,20 +12,21 @@ namespace Nghex.Data.Setup
     {
         private readonly IDatabaseConnection _databaseConnection;
         private readonly IConfiguration _configuration;
-        private readonly IDatabaseProviderFactory _providerFactory;
         private readonly IDatabaseExecutorHelperFactory _helperFactory;
+        private readonly IEnumerable<IDbTableScript> _tableScripts;
         private readonly string _dataProvider;
 
         public DatabaseSetupService(
             IDatabaseConnection databaseConnection,
             IConfiguration configuration,
             IDatabaseProviderFactory providerFactory,
-            IDatabaseExecutorHelperFactory helperFactory)
+            IDatabaseExecutorHelperFactory helperFactory,
+            IEnumerable<IDbTableScript> tableScripts)
         {
             _databaseConnection = databaseConnection;
             _configuration = configuration;
-            _providerFactory = providerFactory;
             _helperFactory = helperFactory;
+            _tableScripts = tableScripts;
             _dataProvider = _configuration["DataSettings:DataProvider"] ?? "Oracle";
         }
 
@@ -72,15 +72,11 @@ namespace Nghex.Data.Setup
 
             try
             {
-                var sqlScript = await GetSqlScriptAsync();
-                if (string.IsNullOrEmpty(sqlScript))
-                {
-                    result.Success = false;
-                    result.Message = $"No SQL script found for provider: {_dataProvider}";
-                    return result;
-                }
+                var tableStatements = _tableScripts.SelectMany(s => s.GetTableStatements()).ToList();
+                var seedStatements = _tableScripts.SelectMany(s => s.GetSeedStatements()).ToList();
 
-                await ExecuteSqlScriptAsync(sqlScript, result);
+                await ExecuteStatementsAsync(tableStatements, result);
+                await ExecuteStatementsAsync(seedStatements, result);
 
                 result.Success = result.Errors.Count == 0 && result.ExecutedCommands.Count > 0;
                 result.Message = result.Success
@@ -101,41 +97,7 @@ namespace Nghex.Data.Setup
 
         public string GetDataProvider() => _dataProvider;
 
-        private async Task<string> GetSqlScriptAsync()
-        {
-            try
-            {
-                var provider = _providerFactory.GetProvider(_dataProvider);
-                var scriptFileName = provider.GetScriptFileName();
-                var scriptPath = Path.Combine("data", "setup", scriptFileName);
-
-                var exeDir = AppDomain.CurrentDomain.BaseDirectory;
-                var projectRoot = Path.GetFullPath(Path.Combine(exeDir, "..", "..", ".."));
-                var candidates = new List<string>
-                {
-                    Path.Combine(projectRoot, scriptPath),
-                    Path.Combine(Directory.GetCurrentDirectory(), scriptPath),
-                    Path.Combine(exeDir, scriptPath)
-                };
-
-                var fullPath = candidates.FirstOrDefault(File.Exists) ?? candidates.Last();
-                if (!File.Exists(fullPath))
-                {
-                    Console.WriteLine($"SQL script file not found: {fullPath}");
-                    return string.Empty;
-                }
-
-                return await File.ReadAllTextAsync(fullPath, Encoding.UTF8);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error loading SQL script: {ex.Message}");
-                Console.WriteLine(ex.StackTrace);
-                return string.Empty;
-            }
-        }
-
-        private async Task ExecuteSqlScriptAsync(string sqlScript, DatabaseSetupResult result)
+        private async Task ExecuteStatementsAsync(IEnumerable<string> statements, DatabaseSetupResult result)
         {
             try
             {
@@ -143,39 +105,29 @@ namespace Nghex.Data.Setup
                 var helper = _helperFactory.GetHelper(connection);
                 await helper.OpenConnectionAsync(connection);
 
-                var provider = _providerFactory.GetProvider(_dataProvider);
-                var commands = provider.SplitSqlScript(sqlScript);
-                if (commands == null || commands.Count == 0)
-                    throw new InvalidOperationException("No SQL commands found in script");
-
-                foreach (var commandText in commands)
+                foreach (var statement in statements)
                 {
-                    var trimmedCommand = commandText?.Trim(';', '/');
-                    if (trimmedCommand == null || string.IsNullOrWhiteSpace(trimmedCommand))
+                    var trimmed = statement.Trim().TrimEnd(';', '/');
+                    if (string.IsNullOrWhiteSpace(trimmed))
                         continue;
-                    if (trimmedCommand.EndsWith(";", StringComparison.Ordinal))
-                        trimmedCommand = trimmedCommand.Substring(0, trimmedCommand.Length - 1).TrimEnd();
                     try
                     {
-                        await connection.ExecuteAsync(
-                            trimmedCommand,
-                            commandTimeout: 300
-                        );
-                        result.ExecutedCommands.Add(trimmedCommand[..Math.Min(200, trimmedCommand.Length)] + (trimmedCommand.Length > 200 ? "..." : ""));
+                        await connection.ExecuteAsync(trimmed, commandTimeout: 300);
+                        result.ExecutedCommands.Add(trimmed[..Math.Min(200, trimmed.Length)] + (trimmed.Length > 200 ? "..." : ""));
                     }
                     catch (Exception ex)
                     {
-                        var errorMsg = $"Error executing command: {ex.Message}";
-                        Console.WriteLine($"{errorMsg}");
+                        var errorMsg = $"Error executing statement: {ex.Message}";
+                        Console.WriteLine(errorMsg);
                         result.Errors.Add(new DatabaseSetupErrorResult(errorMsg,
-                            trimmedCommand[..Math.Min(200, trimmedCommand.Length)] + (trimmedCommand.Length > 200 ? "..." : ""),
+                            trimmed[..Math.Min(200, trimmed.Length)] + (trimmed.Length > 200 ? "..." : ""),
                             errorStackTrace: ex.StackTrace));
                     }
                 }
             }
             catch (Exception ex)
             {
-                var errorMsg = $"Error in ExecuteSqlScriptAsync: {ex.Message}";
+                var errorMsg = $"Error in ExecuteStatementsAsync: {ex.Message}";
                 Console.WriteLine(errorMsg);
                 Console.WriteLine(ex.StackTrace);
                 result.Errors.Add(new DatabaseSetupErrorResult(ex.Message, errorStackTrace: ex.StackTrace));

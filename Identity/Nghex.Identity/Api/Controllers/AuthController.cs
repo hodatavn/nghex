@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.Options;
 using System.Security.Claims;
 using System.Text;
 using Nghex.Identity.Models;
@@ -11,7 +12,9 @@ using Nghex.Identity.Services.Interfaces;
 using Nghex.Logging.Interfaces;
 using Nghex.Identity.Middleware.Extensions;
 using Nghex.Identity.Api.Services;
-using Nghex.Identity.Api.Models.Account;
+using Nghex.Identity.Api.Models.Requests;
+using Nghex.Web.AspNetCore.Controllers;
+using Nghex.Web.AspNetCore.Models;
 
 namespace Nghex.Identity.Api.Controllers
 {
@@ -27,16 +30,16 @@ namespace Nghex.Identity.Api.Controllers
         IJwtService jwtService,
         ISetupMenuService setupMenuService,
         IMenuService menuService,
-        ILoggingService loggingService,
         IHttpContextService httpContextService,
         AuthCookieConfiguration cookieConfig,
         JwtConfiguration jwtConfig,
-        ISystemInitializationState initState) : ControllerBase
+        ISystemInitializationState initState,
+        ILoggingService loggingService,
+        IOptions<PerformanceTrackingOptions> options) : BaseController(loggingService, options)
     {
         private readonly IAccountService _accountService = accountService;
         private readonly IAuthManagementService _authManagementService = authManagementService;
         private readonly IJwtService _jwtService = jwtService;
-        private readonly ILoggingService _loggingService = loggingService;
         private readonly IHttpContextService _httpContextService = httpContextService;
         private readonly AuthCookieConfiguration _cookieConfig = cookieConfig;
         private readonly JwtConfiguration _jwtConfig = jwtConfig;
@@ -48,8 +51,9 @@ namespace Nghex.Identity.Api.Controllers
         /// Đăng nhập
         /// </summary>
         [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginRequestModel request)
+        public async Task<IActionResult> Login([FromBody] LoginRequest request)
         {
+            StartProcessing();
             try
             {
                 if (string.IsNullOrEmpty(request.Username) || string.IsNullOrEmpty(request.Password))
@@ -102,7 +106,7 @@ namespace Nghex.Identity.Api.Controllers
                     var userAgent = _httpContextService.GetUserAgent();
                     if (account == null)
                         return Unauthorized(new { message = "Invalid username or password" });
-                    var rolesOfAccount = await _authManagementService.GetRolesOfAccountAsync(account.Id);
+                    var rolesOfAccount = await _authManagementService.GetRolesOfAccountAsync(account.AccountId);
                     
                     // Generate JWT tokens
                     var tokenResponse = await _jwtService.GenerateTokensAsync(account, [.. rolesOfAccount], request.IpAddress, userAgent);
@@ -137,25 +141,24 @@ namespace Nghex.Identity.Api.Controllers
                 );
                 return StatusCode(500, new { message = "Internal server error" });
             }
+            finally { StopProcessing(); }
         }
-
 
         /// <summary>
         /// Refresh token
         /// </summary>
         [HttpPost("refresh")]
-        [AllowAnonymous]
-        public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequestModel request)
+        [Authorize]
+        public async Task<IActionResult> RefreshToken()
         {
+            StartProcessing();
             try
             {
-                // Accept refresh token from body (legacy) OR from HttpOnly cookie (recommended)
-                var refreshToken = request.RefreshToken;
-                if (string.IsNullOrWhiteSpace(refreshToken))
-                    refreshToken = GetCookie(_cookieConfig.RefreshTokenCookieName);
+                // Accept refresh token from HttpOnly cookie only
+                var refreshToken = GetCookie(_cookieConfig.RefreshTokenCookieName);
 
                 if (string.IsNullOrWhiteSpace(refreshToken))
-                    return BadRequest(new { message = "Refresh token is required" });
+                    return Unauthorized(new { message = "Refresh token is required" });
 
                 var ipAddress = _httpContextService.GetClientIpAddress();
                 var userAgent = _httpContextService.GetUserAgent();
@@ -196,15 +199,17 @@ namespace Nghex.Identity.Api.Controllers
                 );
                 return StatusCode(500, new { message = "Internal server error" });
             }
+            finally { StopProcessing(); }
         }
 
         /// <summary>
         /// Đăng xuất
         /// </summary>
         [HttpPost("logout")]
-        [AllowAnonymous]
+        [Authorize]
         public async Task<IActionResult> Logout()
         {
+            StartProcessing();
             try
             {
                 // If we still have a valid principal, revoke by access token jti.
@@ -234,6 +239,7 @@ namespace Nghex.Identity.Api.Controllers
                 );
                 return StatusCode(500, new { message = "Internal server error" });
             }
+            finally { StopProcessing(); }
         }
 
         /// <summary>
@@ -243,6 +249,7 @@ namespace Nghex.Identity.Api.Controllers
         [Authorize]
         public async Task<IActionResult> LogoutAll()
         {
+            StartProcessing();
             try
             {
                 var accountId = User.GetUserId();
@@ -266,34 +273,52 @@ namespace Nghex.Identity.Api.Controllers
                 );
                 return StatusCode(500, new { message = "Internal server error" });
             }
+            finally { StopProcessing(); }
         }
 
 
         /// <summary>
         /// Get filtered menu tree for current user.
         /// </summary>
-        [HttpGet("me/menu")]
+        [HttpGet("menu")]
         [Authorize]
         public async Task<IActionResult> GetMenu()
         {
-            var accountId = User.GetUserId();
-            if (!accountId.HasValue || accountId.Value <= 0)
+            StartProcessing();
+            try
             {
-                // Allow setup user (account_id=0) when claim setup_token=true
-                var setupToken = User.FindFirst("setup_token")?.Value;
-                if (string.Equals(setupToken, "true", StringComparison.OrdinalIgnoreCase))
+                var accountId = User.GetUserId();
+                if (!accountId.HasValue || accountId.Value <= 0)
                 {
-                    var setupMenu = await _setupMenuService.GetSetupMenuAsync();
-                    return Ok(setupMenu);
+                    // Allow setup user (account_id=0) when claim setup_token=true
+                    var setupToken = User.FindFirst("setup_token")?.Value;
+                    if (string.Equals(setupToken, "true", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var setupMenu = await _setupMenuService.GetSetupMenuAsync();
+                        return Ok(setupMenu);
+                    }
+
+                    return Unauthorized(new { message = "User not authenticated" });
                 }
+                var permissionCodes = (await _authManagementService.GetPermissionsOfAccountAsync(accountId.Value))
+                                        .Select(p => p.Code);
 
-                return Unauthorized(new { message = "User not authenticated" });
+                var menu = await _menuService.GetMenuTreeFromPermissionsAsync(permissionCodes);
+                return Ok(menu);
             }
-            var permissionCodes = (await _authManagementService.GetPermissionsOfAccountAsync(accountId.Value))
-                                    .Select(p => p.Code);
-
-            var menu = await _menuService.GetMenuTreeFromPermissionsAsync(permissionCodes);
-            return Ok(menu);
+            catch (Exception ex)
+            {
+                await _loggingService.LogErrorAsync(
+                    "Error getting menu",
+                    ex,
+                    source: "AuthController.GetMenu",
+                    module: "Authentication",
+                    action: "GetMenu",
+                    details: new { AccountId = User.GetUserId() }
+                );
+                return StatusCode(500, new { message = "Internal server error" });
+            }
+            finally { StopProcessing(); }
         }
 
 
@@ -304,6 +329,7 @@ namespace Nghex.Identity.Api.Controllers
         // [Authorize]
         public async Task<IActionResult> GetCurrentUser()
         {
+            StartProcessing();
             try
             {
                 var userInfo = new UserInfo
@@ -329,8 +355,28 @@ namespace Nghex.Identity.Api.Controllers
                 );
                 return StatusCode(500, new { message = "Internal server error" });
             }
+            finally { StopProcessing(); }
         }
 
+        [HttpPut("change-password")]
+        [Authorize]
+        public async Task<ActionResult<GenericResponseModel>> ChangePassword([FromBody] ChangePasswordRequest request)
+        {
+            StartProcessing();
+            try
+            {
+                if (!request.IsValid())
+                    return ValidationError<GenericResponseModel>(request.GetValidationErrors()).Result!;
+
+                var success = await _accountService.ChangePasswordAsync(request.Username, request.CurrentPassword, request.NewPassword);
+                if (!success)
+                    return Error<GenericResponseModel>("Failed to change password", "CHANGE_PASSWORD_FAILED", "Change password operation failed").Result!;
+
+                return await SuccessAsync(new GenericResponseModel { Data = new { Message = "Password changed successfully" } });
+            }
+            catch (Exception ex) { return await HandleExceptionAsync<GenericResponseModel>(ex, "Failed to change password"); }
+            finally { StopProcessing(); }
+        }
 
         /// <summary>
         /// Lấy thông tin login tracking của user hiện tại

@@ -12,8 +12,24 @@ namespace Nghex.Plugins
 		private readonly AssemblyDependencyResolver _resolver = new(pluginMainPath);
 		private readonly string _pluginMainPath = pluginMainPath;
 
+		private static bool ShouldUseDefaultContext(string? assemblySimpleName)
+		{
+			if (string.IsNullOrWhiteSpace(assemblySimpleName))
+				return false;
+
+			// Shared host/domain assemblies must be loaded from default context to avoid
+			// duplicate type identities and version skew across plugin contexts.
+			return assemblySimpleName.StartsWith("Nghex.", StringComparison.Ordinal)
+				   || assemblySimpleName.Equals("Nghex", StringComparison.Ordinal);
+		}
+
         protected override Assembly? Load(AssemblyName assemblyName)
 		{
+			if (ShouldUseDefaultContext(assemblyName.Name))
+			{
+				return null; // Let default context resolve shared Nghex assemblies
+			}
+
 			var assemblyPath = _resolver.ResolveAssemblyToPath(assemblyName);
 			if (assemblyPath != null)
 			{

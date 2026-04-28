@@ -1,25 +1,17 @@
 using Mapster;
-using Nghex.Identity.DTOs.Permissions;
-using Nghex.Base.Entities;
+using Nghex.Identity.Api.Models.Requests;
+using Nghex.Identity.Api.Models.Responses;
 using Nghex.Identity.Persistence.Entities;
 
 namespace Nghex.Identity.Mapping;
 
-/// <summary>
-/// Mapster mapping configuration for Permission domain
-/// </summary>
 public static class PermissionMappingConfig
 {
-    /// <summary>
-    /// Configure Permission mappings
-    /// </summary>
     public static void Configure()
     {
-        // Entity -> DTO
-        TypeAdapterConfig<PermissionEntity, PermissionDto>.NewConfig();
+        TypeAdapterConfig<PermissionEntity, PermissionResponse>.NewConfig();
 
-        // CreateDto -> Entity
-        TypeAdapterConfig<CreatePermissionDto, PermissionEntity>.NewConfig()
+        TypeAdapterConfig<CreatePermissionRequest, PermissionEntity>.NewConfig()
             .Map(dest => dest.Code, src => src.Code)
             .Map(dest => dest.Name, src => src.Name)
             .Map(dest => dest.Description, src => src.Description)
@@ -33,8 +25,7 @@ public static class PermissionMappingConfig
             .Ignore(dest => dest.UpdatedBy!)
             .Ignore(dest => dest.IsDeleted!);
 
-        // UpdateDto -> Entity
-        TypeAdapterConfig<UpdatePermissionDto, PermissionEntity>.NewConfig()
+        TypeAdapterConfig<UpdatePermissionRequest, PermissionEntity>.NewConfig()
             .Map(dest => dest.Code, src => src.Code)
             .Map(dest => dest.Name, src => src.Name)
             .Map(dest => dest.Description, src => src.Description)

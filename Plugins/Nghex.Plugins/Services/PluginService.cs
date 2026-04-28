@@ -1,11 +1,9 @@
 using Nghex.Plugins.Interfaces;
-using Nghex.Plugins.Services;
 using System.Text.Json;
 using Nghex.Plugins.Models;
 using Nghex.Core.Logging;
 using Nghex.Utilities;
 using Microsoft.Extensions.Configuration;
-using Nghex.Plugins.DTOs;
 
 namespace Nghex.Plugins.Services
 {
@@ -115,8 +113,7 @@ namespace Nghex.Plugins.Services
 
                         await _fileSettingsService.AddOrUpdatePluginAsync(pluginConfig);
 
-                        // Convert to DTO for response
-                        var pluginDto = new PluginDto
+                                result.Plugins.Add(new PluginResponseModel
                         {
                             Name = pluginConfig.Name,
                             Version = pluginConfig.Version ?? "1.0.0",
@@ -126,9 +123,7 @@ namespace Nghex.Plugins.Services
                             Priority = pluginConfig.Priority,
                             IsLoaded = _pluginManager.IsPluginLoaded(pluginConfig.Name),
                             Configuration = pluginConfig.Configuration
-                        };
-
-                        result.Plugins.Add(pluginDto);
+                        });
                         
                         // Unload context after analysis
                         try { analysis.LoadContext.Unload(); } catch { }

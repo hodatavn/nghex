@@ -1,10 +1,8 @@
 using Mapster;
-using Nghex.Identity.DTOs.Accounts;
-using Nghex.Identity.DTOs.Permissions;
-using Nghex.Identity.DTOs.Roles;
+using Nghex.Identity.Api.Models.Requests;
+using Nghex.Identity.Api.Models.Responses;
 using Nghex.Core.Helper;
 using Nghex.Logging.Interfaces;
-using Nghex.Base.Entities;
 using Nghex.Identity.Persistence.Entities;
 using Nghex.Identity.Repositories.Accounts.Interfaces;
 using Nghex.Identity.Services.Interfaces;
@@ -14,9 +12,6 @@ using Nghex.Utilities;
 
 namespace Nghex.Identity.Services
 {
-    /// <summary>
-    /// Account Service implementation với business logic cho account management
-    /// </summary>
     public class AccountService(
         IAccountRepository accountRepository,
         IAccountRoleRepository accountRoleRepository,
@@ -40,54 +35,48 @@ namespace Nghex.Identity.Services
 
         #region Basic CRUD Operations
 
-        public async Task<AccountDto?> GetByIdAsync(long id)
+        public async Task<AccountResponse?> GetByIdAsync(long id)
         {
-            if (id <= 0)
-                return null;
-
+            if (id <= 0) return null;
             var entity = await _accountRepository.GetByIdAsync(id);
-            return entity?.Adapt<AccountDto>();
+            return entity?.Adapt<AccountResponse>();
         }
 
-        public async Task<IEnumerable<AccountDto>> GetAllAsync(bool isDeleted)
+        public async Task<IEnumerable<AccountResponse>> GetAllAsync(bool isDeleted)
         {
             var entities = await _accountRepository.GetAllAsync(isDeleted);
-            return entities.Select(e => e.Adapt<AccountDto>());
+            return entities.Select(e => e.Adapt<AccountResponse>());
         }
 
-        public async Task<AccountDto> CreateAsync(CreateAccountDto createDto)
+        public async Task<AccountResponse> CreateAsync(CreateAccountRequest request)
         {
-            ArgumentNullException.ThrowIfNull(createDto);
+            ArgumentNullException.ThrowIfNull(request);
 
-            // Business validation only
-            await ValidateNewAccountAsync(createDto);
+            await ValidateNewAccountAsync(request);
 
-            // Map DTO to Entity
-            var entity = createDto.Adapt<AccountEntity>();
-            entity.Password = _passwordService.HashPassword(createDto.Password);
+            var entity = request.Adapt<AccountEntity>();
+            entity.Password = _passwordService.HashPassword(request.Password);
 
             var id = await _accountRepository.AddAsync(entity);
             entity.Id = id;
 
-            return entity.Adapt<AccountDto>();
+            return entity.Adapt<AccountResponse>();
         }
 
-        public async Task<bool> UpdateAsync(UpdateAccountDto updateDto)
+        public async Task<bool> UpdateAsync(UpdateAccountRequest request)
         {
-            ArgumentNullException.ThrowIfNull(updateDto);
+            ArgumentNullException.ThrowIfNull(request);
 
-            var existingEntity = await _accountRepository.GetByUsernameAsync(updateDto.Username);
+            var existingEntity = await _accountRepository.GetByUsernameAsync(request.Username);
             if (existingEntity == null || existingEntity.IsDeleted)
                 throw new InvalidOperationException("Account not found or not allowed to update");
 
-            // Business validation for update
-            await ValidateUpdateAccountAsync(updateDto, existingEntity.Id);
+            await ValidateUpdateAccountAsync(request, existingEntity.Id);
 
-            // Update fields from DTO
-            existingEntity.DisplayName = updateDto.DisplayName;
-            existingEntity.Email = updateDto.Email;
-            existingEntity.IsActive = updateDto.IsActive;
-            existingEntity.UpdatedBy = updateDto.UpdatedBy;
+            existingEntity.DisplayName = request.DisplayName;
+            existingEntity.Email = request.Email!;
+            existingEntity.IsActive = request.IsActive;
+            existingEntity.UpdatedBy = request.UpdatedBy;
 
             return await _accountRepository.UpdateAsync(existingEntity);
         }
@@ -95,18 +84,14 @@ namespace Nghex.Identity.Services
         public async Task<bool> DeleteAsync(long id, string deletedBy)
         {
             var account = await _accountRepository.GetByIdAsync(id);
-            if (account == null)
-                return false;
-
+            if (account == null) return false;
             return await _accountRepository.DeleteAsync(id, deletedBy);
         }
 
         public async Task<bool> RestoreAsync(long id, string restoredBy)
         {
             var account = await _accountRepository.GetByIdAndIsDeletedAsync(id);
-            if (account == null)
-                return false;
-
+            if (account == null) return false;
             return await _accountRepository.RestoreAsync(id, restoredBy);
         }
 
@@ -114,22 +99,18 @@ namespace Nghex.Identity.Services
 
         #region Account-Specific Operations
 
-        public async Task<AccountDto?> GetByUsernameAsync(string username)
+        public async Task<AccountResponse?> GetByUsernameAsync(string username)
         {
-            if (string.IsNullOrWhiteSpace(username))
-                return null;
-
+            if (string.IsNullOrWhiteSpace(username)) return null;
             var entity = await _accountRepository.GetByUsernameAsync(username);
-            return entity?.Adapt<AccountDto>();
+            return entity?.Adapt<AccountResponse>();
         }
 
-        public async Task<AccountDto?> GetByEmailAsync(string email)
+        public async Task<AccountResponse?> GetByEmailAsync(string email)
         {
-            if (string.IsNullOrWhiteSpace(email))
-                return null;
-
+            if (string.IsNullOrWhiteSpace(email)) return null;
             var entity = await _accountRepository.GetByEmailAsync(email);
-            return entity?.Adapt<AccountDto>();
+            return entity?.Adapt<AccountResponse>();
         }
 
         public async Task LockAccountAsync(string username, DateTime lockedUntil, string lockedBy)
@@ -137,7 +118,7 @@ namespace Nghex.Identity.Services
             var account = await GetAccountEntityOrThrowAsync(username);
             await _accountRepository.LockAccountAsync(account.Username, lockedUntil, lockedBy);
         }
-        
+
         public async Task UnlockAccountAsync(string username, string unlockedBy)
         {
             var account = await GetAccountEntityOrThrowAsync(username);
@@ -148,7 +129,7 @@ namespace Nghex.Identity.Services
 
         #region Authentication Operations
 
-        public async Task<AccountDto?> AuthenticateAsync(string username, string password, string ipAddress)
+        public async Task<AccountResponse?> AuthenticateAsync(string username, string password, string ipAddress)
         {
             var account = await _accountRepository.GetByUsernameAsync(username);
             if (account == null || !account.IsActive || account.IsDeleted)
@@ -157,7 +138,6 @@ namespace Nghex.Identity.Services
             if (!_passwordService.VerifyPassword(password, account.Password))
             {
                 await UpdateFailedLoginAsync(username, ipAddress);
-                // Log security event - failed login attempt
                 await _loggingService.LogWarningAsync(
                     $"Login failed for username: {username}",
                     source: "AccountService.AuthenticateAsync",
@@ -168,23 +148,18 @@ namespace Nghex.Identity.Services
                 throw new InvalidOperationException("Invalid username or password");
             }
 
-            // Check if account is locked
             if (account.IsLocked && account.LockedUntil.HasValue && account.LockedUntil > DateTime.UtcNow)
                 throw new InvalidOperationException("Account is locked until " + account.LockedUntil?.ToString("dd/MM/yyyy HH:mm:ss"));
-            
+
             if (account.IsLocked && !account.LockedUntil.HasValue)
                 throw new InvalidOperationException("Account is locked");
-            
-            // Kiểm tra license khi login - chỉ kiểm tra 1 lần, kết quả được cache trong LicenseService
-            // License được cache trong LicenseService, không cần validate lại mỗi request
+
             var licenseValidation = await _licenseService.ValidateLicenseAsync();
             if (!licenseValidation.IsValid)
-            {
                 throw new InvalidOperationException($"License validation failed: {licenseValidation.Message}");
-            }
-            
+
             await UpdateSuccessfulLoginAsync(username, ipAddress);
-            return account.Adapt<AccountDto>();
+            return account.Adapt<AccountResponse>();
         }
 
         public async Task<bool> ChangePasswordAsync(string username, string currentPassword, string newPassword)
@@ -194,7 +169,6 @@ namespace Nghex.Identity.Services
             if (!_passwordService.VerifyPassword(currentPassword, account.Password))
                 throw new InvalidOperationException("Invalid current password");
 
-            // Business validation: password min length from config
             var minLength = await GetPasswordMinLengthAsync();
             if (newPassword.Length < minLength)
                 throw new ArgumentException($"Password must be at least {minLength} characters");
@@ -204,10 +178,9 @@ namespace Nghex.Identity.Services
         }
 
         public async Task<bool> ResetPasswordAsync(string username)
-        {   
+        {
             var account = await GetAccountEntityOrThrowAsync(username);
             account.Password = _passwordService.HashPassword(DefaultPassword);
-
             return await _accountRepository.ChangePasswordAsync(account.Id, account.Password);
         }
 
@@ -218,7 +191,6 @@ namespace Nghex.Identity.Services
         }
 
         #endregion
-
 
         #region Setup Credentials
 
@@ -237,7 +209,7 @@ namespace Nghex.Identity.Services
             var setupPassword = _appConfiguration.GetAppSettingValueByKey("SetupAccount:Password");
             if (string.IsNullOrWhiteSpace(setupPassword))
                 setupPassword = _appConfiguration.GetAppSettingValueByKey("SetupSettings:SetupAccount:Password");
-                
+
             if (string.IsNullOrWhiteSpace(setupPassword))
                 return Task.FromResult(false);
 
@@ -249,48 +221,34 @@ namespace Nghex.Identity.Services
 
         #endregion
 
-        #region Business Validation (no format validation - handled by Presentation layer)
-        
-        /// <summary>
-        /// Validate new account - business rules only
-        /// </summary>
-        private async Task ValidateNewAccountAsync(CreateAccountDto dto)
+        #region Private Helpers
+
+        private async Task ValidateNewAccountAsync(CreateAccountRequest request)
         {
-            // Business rule: username must be valid code format
-            if (!ModelHelper.IsValidCode(dto.Username))
+            if (!ModelHelper.IsValidCode(request.Username))
                 throw new ArgumentException("Username can only contain letters, numbers, and underscores");
 
-            // Business rule: username must be unique
-            if (await _accountRepository.UsernameExistsAsync(dto.Username))
+            if (await _accountRepository.UsernameExistsAsync(request.Username))
                 throw new ArgumentException("Username already exists");
 
-            // Business rule: password min length from config
             var minLength = await GetPasswordMinLengthAsync();
-            if (dto.Password.Length < minLength)
+            if (request.Password.Length < minLength)
                 throw new ArgumentException($"Password must be at least {minLength} characters");
         }
 
-        /// <summary>
-        /// Validate update account - business rules only
-        /// </summary>
-        private async Task ValidateUpdateAccountAsync(UpdateAccountDto dto, long currentAccountId)
+        private async Task ValidateUpdateAccountAsync(UpdateAccountRequest request, long currentAccountId)
         {
-            // Business rule: email must be valid format
-            if (!string.IsNullOrWhiteSpace(dto.Email) && !ModelHelper.IsValidEmail(dto.Email))
+            if (!string.IsNullOrWhiteSpace(request.Email) && !ModelHelper.IsValidEmail(request.Email))
                 throw new ArgumentException("Invalid email format");
 
-            // Business rule: email must be unique (exclude current account)
-            if (!string.IsNullOrWhiteSpace(dto.Email))
+            if (!string.IsNullOrWhiteSpace(request.Email))
             {
-                var existingByEmail = await _accountRepository.GetByEmailAsync(dto.Email);
+                var existingByEmail = await _accountRepository.GetByEmailAsync(request.Email);
                 if (existingByEmail != null && existingByEmail.Id != currentAccountId)
                     throw new ArgumentException("Email already exists");
             }
         }
 
-        /// <summary>
-        /// Get account entity or throw if not found/inactive
-        /// </summary>
         private async Task<AccountEntity> GetAccountEntityOrThrowAsync(string username)
         {
             if (string.IsNullOrWhiteSpace(username))

@@ -1,7 +1,6 @@
 using System.Data;
 using System.Text.Json;
 using Dapper;
-using Nghex.Base.Entities;
 using Nghex.Identity.Persistence.Entities;
 using Nghex.Data;
 using Nghex.Identity.Repositories.Menu.Interfaces;
@@ -177,7 +176,7 @@ namespace Nghex.Identity.Repositories.Menu
                 )
                 SELECT DISTINCT 
                     {fields},
-                    1 IsAccessible
+                    1 IS_ACCESSIBLE
                 FROM SYS_MENU_ITEMS mi
                 WHERE mi.IS_ACTIVE = 1
                 START WITH mi.MENU_KEY IN (SELECT MENU_KEY FROM seed)
@@ -213,7 +212,7 @@ namespace Nghex.Identity.Repositories.Menu
         /// </summary>
         private sealed class MenuItemWithAccess : MenuItemEntity
         {
-            public int IsAccessible { get; set; }
+            [System.ComponentModel.DataAnnotations.Schema.Column("IS_ACCESSIBLE")] public int IsAccessible { get; set; }
         }
     }
 }

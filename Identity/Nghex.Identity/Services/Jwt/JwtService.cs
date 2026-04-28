@@ -11,8 +11,7 @@ using Nghex.Logging.Interfaces;
 using Nghex.Utilities;
 using Nghex.Core.Extension;
 using Nghex.Identity.Enum;
-using Nghex.Identity.DTOs.Accounts;
-using Nghex.Identity.DTOs.Roles;
+using Nghex.Identity.Api.Models.Responses;
 using Nghex.Identity.Services.Interfaces;
 using Nghex.Base.Entities;
 using Nghex.Identity.Persistence.Entities;
@@ -46,7 +45,7 @@ namespace Nghex.Identity.Services
             EnsureSymmetricSecretKey();
         }
 
-        public async Task<JwtTokenResponse> GenerateTokensAsync(AccountDto account, List<RoleDto> roles, string? ipAddress = null, string? userAgent = null)
+        public async Task<JwtTokenResponse> GenerateTokensAsync(AccountResponse account, List<RoleResponse> roles, string? ipAddress = null, string? userAgent = null)
         {
             try
             {
@@ -58,14 +57,14 @@ namespace Nghex.Identity.Services
                 // Tạo claims
                 var claims = new List<Claim>
                 {
-                    new(JwtRegisteredClaimNames.Sub, account.Id.ToString()),
+                    new(JwtRegisteredClaimNames.Sub, account.AccountId.ToString()),
                     new(JwtRegisteredClaimNames.Jti, tokenId),
                     new(JwtRegisteredClaimNames.Iat, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
                     new(JwtRegisteredClaimNames.Email, account.Email),
                     new("username", account.Username),
                     new("email", account.Email),
                     new("display_name", account.DisplayName ?? account.Username ?? string.Empty),
-                    new("account_id", account.Id.ToString()),
+                    new("account_id", account.AccountId.ToString()),
                     new("expired_at", expiresAt.ToLocalTime().Format(DateFormat.DayMonthYearHour24MinuteSecond)),
                 };
 
@@ -75,10 +74,10 @@ namespace Nghex.Identity.Services
 
                 foreach (var role in roles)
                 {
-                    if (!string.IsNullOrWhiteSpace(role.Code))
+                    if (!string.IsNullOrWhiteSpace(role.RoleCode))
                     {
-                        claims.Add(new Claim(ClaimTypes.Role, role.Code));
-                        roleCodes.Add(role.Code);
+                        claims.Add(new Claim(ClaimTypes.Role, role.RoleCode));
+                        roleCodes.Add(role.RoleCode);
                     }
                     var roleLevel = role.RoleLevel.GetLevel();
                     roleLevels.Add(roleLevel);
@@ -93,7 +92,7 @@ namespace Nghex.Identity.Services
                 // Lưu token vào database
                 var jwtToken = new JwtTokenEntity
                 {
-                    AccountId = account.Id,
+                    AccountId = account.AccountId,
                     TokenId = tokenId,
                     RefreshToken = refreshToken,
                     ExpiresAt = expiresAt,
@@ -105,10 +104,9 @@ namespace Nghex.Identity.Services
 
                 await _jwtTokenRepository.AddAsync(jwtToken);
 
-                // Tạo user info                
                 var userInfo = new UserInfo
                 {
-                    Id = account.Id,
+                    Id = account.AccountId,
                     Username = account.Username ?? string.Empty,
                     Email = account.Email ?? string.Empty,
                     DisplayName = account.DisplayName ?? account.Username ?? string.Empty,
@@ -127,7 +125,7 @@ namespace Nghex.Identity.Services
             catch (Exception ex)
             {
                 await _loggingService.LogErrorAsync(
-                    $"Error generating JWT tokens for account: {account.Id}",
+                    $"Error generating JWT tokens for account: {account.AccountId}",
                     ex,
                     source: "JwtService.GenerateTokensAsync",
                     module: "JWT",
@@ -156,18 +154,16 @@ namespace Nghex.Identity.Services
                 var roleEntities = await _accountRoleRepository.GetRolesByAccountIdAsync(accountEntity.Id);
                 var roles = roleEntities
                     .Where(r => !string.IsNullOrWhiteSpace(r.Code))
-                    .Select(r => r.Adapt<RoleDto>())
+                    .Select(r => r.Adapt<RoleResponse>())
                     .ToList();
 
                 if (roles.Count == 0)
                 {
-                    // Fallback: keep at least one role so downstream code doesn't break
-                    roles.Add(new RoleDto { Code = RoleLevel.User.GetCode(), RoleLevel = RoleLevel.User });
+                    roles.Add(new RoleResponse { RoleCode = RoleLevel.User.GetCode(), RoleLevel = RoleLevel.User });
                 }
 
-                // Convert entity to DTO and generate new tokens
-                var accountDto = accountEntity.Adapt<AccountDto>();
-                return await GenerateTokensAsync(accountDto, roles, ipAddress, userAgent);
+                var accountResponse = accountEntity.Adapt<AccountResponse>();
+                return await GenerateTokensAsync(accountResponse, roles, ipAddress, userAgent);
             }
             catch (Exception ex)
             {
